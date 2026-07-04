@@ -119,3 +119,7 @@ behavior lives in `openspec/specs/` (capabilities: `agent-inventory`,
 `agent-lifecycle`, `agent-editor`, `agent-logs`, `app-branding`,
 `ui-design-system`), and every change's proposal/design/tasks are archived under
 `openspec/changes/archive/`.
+
+## License
+
+[GPL-3.0-or-later](LICENSE) © launchr contributors.
