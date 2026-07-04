@@ -1,0 +1,23 @@
+schema: spec-driven
+
+context: |
+  Project: launchr — a macOS GUI app for managing launchd user agents.
+  Tech stack: Tauri (Rust backend + system webview), Vite + React (TypeScript)
+    frontend, Vengeance UI components on a shadcn/ui + Tailwind base.
+  Backend: ~5 tauri commands. Read/write plist files with the `plist` crate;
+    shell out to `launchctl` for runtime state + control (no library exists).
+  Domain: launchd user agents only — `~/Library/LaunchAgents`, `gui/<uid>`
+    domain. NO daemons, NO root, NO privilege escalation (deferred).
+  Control verbs (modern launchctl): bootstrap, bootout, enable, disable,
+    kickstart -k. "Mine vs System" grouping is tracked in an app-owned manifest
+    at ~/Library/Application Support/launchr/ — never pollute user plists.
+  Platform: macOS only.
+
+rules:
+  proposal:
+    - State scope boundaries explicitly; call out what is deferred (daemons/root).
+  design:
+    - Prefer stdlib/native and existing crates over new dependencies; justify any new dep.
+    - Isolate launchctl output parsing in one module (its format is not a stable contract).
+  tasks:
+    - Order by dependency; each task completable in one session and independently verifiable.

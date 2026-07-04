@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* Semantic design tokens. Components use the generated utilities (bg-surface,
+   text-fg, border-border, bg-accent, text-run…). Theme is driven entirely by the
+   runtime variables below — no per-element dark: overrides. */
+@theme {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-selection: var(--selection);
+  --color-code: var(--code);
+  --color-code-fg: var(--code-fg);
+  --color-run: var(--run);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-fail: var(--fail);
+}
+
+:root {
+  color-scheme: light dark;
+
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --border: #e5e5e5; /* neutral-200 */
+  --fg: #171717; /* neutral-900 */
+  --muted: #737373; /* neutral-500 */
+  --accent: #171717; /* ink — flips with theme */
+  --accent-fg: #ffffff;
+  --selection: rgba(23, 23, 23, 0.08);
+  --code: #0a0a0a; /* code/log surface — dark in both themes */
+  --code-fg: #e5e5e5;
+  --run: #3b82f6; /* blue-500 */
+  --ok: #10b981; /* emerald-500 */
+  --warn: #f59e0b; /* amber-500 */
+  --fail: #ef4444; /* red-500 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0a0a0a; /* neutral-950 */
+    --surface: #171717; /* neutral-900 */
+    --border: #262626; /* neutral-800 */
+    --fg: #f5f5f5; /* neutral-100 */
+    --muted: #a3a3a3; /* neutral-400 */
+    --accent: #f5f5f5; /* ink flips to light */
+    --accent-fg: #171717;
+    --selection: rgba(245, 245, 245, 0.1);
+    --code: #000000;
+    --code-fg: #e5e5e5;
+    --run: #60a5fa; /* blue-400 */
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --fail: #f87171;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
