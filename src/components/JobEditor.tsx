@@ -3,6 +3,7 @@ import { formToPlist, saveJob } from "../api";
 import type { CalendarEntry, JobForm } from "../types";
 import { Button, Field, Input, Tabs } from "./ui";
 import { CodeEditor, isXmlValid } from "./CodeEditor";
+import { joinArgs, splitArgs } from "../lib/shellwords";
 
 type Preset = "login" | "interval" | "times" | "watch" | "manual";
 
@@ -29,18 +30,22 @@ const numOrNull = (s: string): number | null =>
 export function JobEditor({
   mode,
   initial,
+  initialRaw,
+  initialTab,
   onClose,
   onSaved,
 }: {
   mode: "new" | "edit";
   initial: JobForm;
+  initialRaw?: string;
+  initialTab?: "form" | "raw";
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState<JobForm>(initial);
   const [preset, setPreset] = useState<Preset>(detectPreset(initial));
-  const [tab, setTab] = useState<"form" | "raw">("form");
-  const [raw, setRaw] = useState("");
+  const [tab, setTab] = useState<"form" | "raw">(initialTab ?? "form");
+  const [raw, setRaw] = useState(initialRaw ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -84,7 +89,7 @@ export function JobEditor({
     }
   }
 
-  const command = form.programArguments.join(" ");
+  const command = joinArgs(form.programArguments);
   // In raw mode, block save on malformed XML (Rust save_job is the final guard).
   const rawInvalid = tab === "raw" && raw.trim() !== "" && !isXmlValid(raw);
 
@@ -125,9 +130,7 @@ export function JobEditor({
                   value={command}
                   placeholder="/usr/bin/backup.sh --flag"
                   onChange={(e) =>
-                    patch({
-                      programArguments: e.currentTarget.value.split(/\s+/).filter(Boolean),
-                    })
+                    patch({ programArguments: splitArgs(e.currentTarget.value) })
                   }
                 />
               </Field>

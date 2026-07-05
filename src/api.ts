@@ -1,9 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Action, Job, JobDetail, JobForm } from "./types";
+import type { Action, Job, JobDetail, JobForm, LiveStatus } from "./types";
 
 export const listJobs = () => invoke<Job[]>("list_jobs");
 export const getJob = (label: string) => invoke<JobDetail>("get_job", { label });
+export const jobStatuses = () =>
+  invoke<Record<string, LiveStatus>>("job_statuses");
 export const formToPlist = (form: JobForm) =>
   invoke<string>("form_to_plist", { form });
 export const saveJob = (rawPlist: string, isNew: boolean) =>

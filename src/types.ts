@@ -42,6 +42,13 @@ export interface JobDetail {
   rawPlist: string;
 }
 
+export interface LiveStatus {
+  loaded: boolean;
+  disabled: boolean;
+  pid: number | null;
+  lastExit: number | null;
+}
+
 export type Action = "load" | "unload" | "enable" | "disable" | "restart";
 
 export const emptyForm = (): JobForm => ({
