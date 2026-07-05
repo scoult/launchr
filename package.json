@@ -4,11 +4,18 @@
   "version": "0.1.0",
   "license": "GPL-3.0-or-later",
   "type": "module",
+  "packageManager": "pnpm@10.29.2",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "typecheck": "tsc --noEmit",
+    "test": "node src/lib/ansi.test.ts && node src/lib/shellwords.test.ts && cargo test --manifest-path src-tauri/Cargo.toml",
+    "lint": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"
   },
   "dependencies": {
     "@codemirror/lang-xml": "^6.1.0",

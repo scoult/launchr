@@ -19,7 +19,10 @@ fn run(args: &[&str]) -> CmdResult {
             ok: out.status.success(),
             stderr: String::from_utf8_lossy(&out.stderr).trim().to_string(),
         },
-        Err(e) => CmdResult { ok: false, stderr: e.to_string() },
+        Err(e) => CmdResult {
+            ok: false,
+            stderr: e.to_string(),
+        },
     }
 }
 
@@ -69,11 +72,17 @@ pub fn disabled_labels() -> HashSet<String> {
     let text = run_stdout(&["print-disabled", &domain::gui_domain()]);
     let mut set = HashSet::new();
     for line in text.lines() {
-        let Some((lhs, rhs)) = line.split_once("=>") else { continue };
+        let Some((lhs, rhs)) = line.split_once("=>") else {
+            continue;
+        };
         let rhs = rhs.trim();
         // "enabled"/"false" => not disabled; "disabled"/"true" => disabled.
         if rhs.starts_with("disabled") || rhs.starts_with("true") {
-            if let Some(label) = lhs.trim().strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+            if let Some(label) = lhs
+                .trim()
+                .strip_prefix('"')
+                .and_then(|s| s.strip_suffix('"'))
+            {
                 set.insert(label.to_string());
             }
         }

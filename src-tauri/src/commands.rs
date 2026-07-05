@@ -63,8 +63,14 @@ fn build_job(
     Job {
         label: label.to_string(),
         path: path.to_string(),
-        group: if mine.contains(label) { "mine".into() } else { "system".into() },
-        schedule: value.map(plist_model::schedule_desc).unwrap_or_else(|| "?".into()),
+        group: if mine.contains(label) {
+            "mine".into()
+        } else {
+            "system".into()
+        },
+        schedule: value
+            .map(plist_model::schedule_desc)
+            .unwrap_or_else(|| "?".into()),
         program: value.map(plist_model::program_of).unwrap_or_default(),
         out_path: value.and_then(plist_model::out_path),
         err_path: value.and_then(plist_model::err_path),
@@ -93,21 +99,42 @@ pub fn list_jobs() -> Result<Vec<Job>, String> {
         if path.extension().and_then(|e| e.to_str()) != Some("plist") {
             continue;
         }
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
         let path_str = path.to_string_lossy().to_string();
         match plist_model::read_value(&path) {
             Ok(value) => {
                 let label = plist_model::label_of(&value).unwrap_or_else(|| stem.clone());
-                jobs.push(build_job(&label, &path_str, Some(&value), None, &states, &disabled, &mine));
+                jobs.push(build_job(
+                    &label,
+                    &path_str,
+                    Some(&value),
+                    None,
+                    &states,
+                    &disabled,
+                    &mine,
+                ));
             }
             Err(e) => {
-                jobs.push(build_job(&stem, &path_str, None, Some(e), &states, &disabled, &mine));
+                jobs.push(build_job(
+                    &stem,
+                    &path_str,
+                    None,
+                    Some(e),
+                    &states,
+                    &disabled,
+                    &mine,
+                ));
             }
         }
     }
     // Mine first, then alphabetical.
     jobs.sort_by(|a, b| {
-        (a.group != "mine", a.label.to_lowercase()).cmp(&(b.group != "mine", b.label.to_lowercase()))
+        (a.group != "mine", a.label.to_lowercase())
+            .cmp(&(b.group != "mine", b.label.to_lowercase()))
     });
     Ok(jobs)
 }
@@ -123,7 +150,15 @@ pub fn get_job(label: String) -> Result<JobDetail, String> {
     match plist_model::read_value(&path) {
         Ok(value) => {
             let real_label = plist_model::label_of(&value).unwrap_or_else(|| label.clone());
-            let job = build_job(&real_label, &path_str, Some(&value), None, &states, &disabled, &mine);
+            let job = build_job(
+                &real_label,
+                &path_str,
+                Some(&value),
+                None,
+                &states,
+                &disabled,
+                &mine,
+            );
             Ok(JobDetail {
                 form: plist_model::value_to_form(&value),
                 raw_plist: plist_model::to_xml(&value)?,
@@ -246,7 +281,13 @@ struct Tailer {
 impl Tailer {
     fn emit(&self, app: &AppHandle, text: String) {
         if !text.is_empty() {
-            let _ = app.emit("log-line", LogLine { stream: self.stream.clone(), text });
+            let _ = app.emit(
+                "log-line",
+                LogLine {
+                    stream: self.stream.clone(),
+                    text,
+                },
+            );
         }
     }
 
@@ -298,10 +339,20 @@ pub fn tail_logs(label: String, app: AppHandle, state: State<TailState>) -> Resu
     let value = plist_model::read_value(&domain::plist_path(&label))?;
     let mut tailers: Vec<Tailer> = Vec::new();
     if let Some(p) = plist_model::out_path(&value) {
-        tailers.push(Tailer { path: p, stream: "out".into(), offset: 0, pending: Vec::new() });
+        tailers.push(Tailer {
+            path: p,
+            stream: "out".into(),
+            offset: 0,
+            pending: Vec::new(),
+        });
     }
     if let Some(p) = plist_model::err_path(&value) {
-        tailers.push(Tailer { path: p, stream: "err".into(), offset: 0, pending: Vec::new() });
+        tailers.push(Tailer {
+            path: p,
+            stream: "err".into(),
+            offset: 0,
+            pending: Vec::new(),
+        });
     }
     if tailers.is_empty() {
         return Err("no log paths configured for this job".into());
