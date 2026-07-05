@@ -6,8 +6,8 @@ export const listJobs = () => invoke<Job[]>("list_jobs");
 export const getJob = (label: string) => invoke<JobDetail>("get_job", { label });
 export const jobStatuses = () =>
   invoke<Record<string, LiveStatus>>("job_statuses");
-export const formToPlist = (form: JobForm) =>
-  invoke<string>("form_to_plist", { form });
+export const formToPlist = (form: JobForm, baseRaw?: string) =>
+  invoke<string>("form_to_plist", { form, baseRaw: baseRaw ?? null });
 export const saveJob = (rawPlist: string, isNew: boolean) =>
   invoke<void>("save_job", { rawPlist, isNew });
 export const setState = (label: string, action: Action) =>

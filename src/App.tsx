@@ -100,7 +100,8 @@ export default function App() {
     if (detail.job.parseError) {
       setEditor({ mode: "edit", initialRaw: detail.rawPlist, initialTab: "raw" });
     } else {
-      setEditor({ mode: "edit" });
+      // Carry the original plist so unmodeled keys survive a form save.
+      setEditor({ mode: "edit", initialRaw: detail.rawPlist });
     }
   }
 
@@ -112,6 +113,8 @@ export default function App() {
         ...detail.form,
         label: detail.form.label ? `${detail.form.label}.copy` : "",
       },
+      // Merge base: preserve keys the form doesn't model in the duplicate.
+      initialRaw: detail.rawPlist,
     });
   }
 

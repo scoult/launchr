@@ -33,6 +33,7 @@ export interface JobForm {
   keepAlive: boolean;
   standardOutPath: string | null;
   standardErrorPath: string | null;
+  workingDirectory: string | null;
   environmentVariables: [string, string][];
 }
 
@@ -61,5 +62,6 @@ export const emptyForm = (): JobForm => ({
   keepAlive: false,
   standardOutPath: null,
   standardErrorPath: null,
+  workingDirectory: null,
   environmentVariables: [],
 });
