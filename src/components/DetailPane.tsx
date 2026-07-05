@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { Action, CalendarEntry, JobDetail } from "../types";
 import { AvailabilityChip, HealthSignal } from "./StatusBadges";
 import { LogsView } from "./LogsView";
@@ -34,15 +35,46 @@ function ScheduleValue({ detail }: { detail: JobDetail }) {
   return <span>{detail.job.schedule}</span>;
 }
 
-function Overview({ detail }: { detail: JobDetail }) {
+// Small inline link-style action (Open / Reveal) used in the Overview rows.
+function LinkAction({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="shrink-0 rounded px-1.5 text-xs text-muted hover:bg-selection hover:text-fg"
+    >
+      {label}
+    </button>
+  );
+}
+
+function Overview({
+  detail,
+  onError,
+}: {
+  detail: JobDetail;
+  onError: (m: string) => void;
+}) {
   const j = detail.job;
-  const rows: [string, string][] = [
-    ["Command", j.program || "—"],
-    ["stdout", j.outPath ?? "—"],
-    ["stderr", j.errPath ?? "—"],
-    ["Group", j.group === "mine" ? "Mine" : "System"],
-    ["File", j.path],
-  ];
+  const open = (p: string) => openPath(p).catch((e) => onError(String(e)));
+
+  const Row = ({
+    label,
+    value,
+    action,
+  }: {
+    label: string;
+    value: string;
+    action?: ReactNode;
+  }) => (
+    <div className="flex gap-3">
+      <dt className="w-24 shrink-0 text-muted">{label}</dt>
+      <dd className="flex min-w-0 flex-1 items-start gap-2">
+        <span className="break-all font-mono text-xs leading-5">{value}</span>
+        {action}
+      </dd>
+    </div>
+  );
+
   return (
     <dl className="space-y-2 text-sm">
       <div className="flex gap-3">
@@ -51,12 +83,28 @@ function Overview({ detail }: { detail: JobDetail }) {
           <ScheduleValue detail={detail} />
         </dd>
       </div>
-      {rows.map(([k, v]) => (
-        <div key={k} className="flex gap-3">
-          <dt className="w-24 shrink-0 text-muted">{k}</dt>
-          <dd className="break-all font-mono text-xs leading-5">{v}</dd>
-        </div>
-      ))}
+      <Row label="Command" value={j.program || "—"} />
+      <Row
+        label="stdout"
+        value={j.outPath ?? "—"}
+        action={j.outPath && <LinkAction label="Open" onClick={() => open(j.outPath!)} />}
+      />
+      <Row
+        label="stderr"
+        value={j.errPath ?? "—"}
+        action={j.errPath && <LinkAction label="Open" onClick={() => open(j.errPath!)} />}
+      />
+      <Row label="Group" value={j.group === "mine" ? "Mine" : "System"} />
+      <Row
+        label="File"
+        value={j.path}
+        action={
+          <LinkAction
+            label="Reveal"
+            onClick={() => revealItemInDir(j.path).catch((e) => onError(String(e)))}
+          />
+        }
+      />
     </dl>
   );
 }
@@ -65,13 +113,17 @@ export function DetailPane({
   detail,
   onAction,
   onEdit,
+  onDuplicate,
   onDelete,
+  onError,
   error,
 }: {
   detail: JobDetail;
   onAction: (a: Action) => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
+  onError: (m: string) => void;
   error: string | null;
 }) {
   const [tab, setTab] = useState<"overview" | "logs" | "raw">("overview");
@@ -88,6 +140,14 @@ export function DetailPane({
           </div>
         </div>
         <div className="flex gap-1">
+          <Button
+            onClick={() => revealItemInDir(j.path).catch((e) => onError(String(e)))}
+          >
+            Reveal
+          </Button>
+          <Button onClick={onDuplicate} disabled={!!j.parseError}>
+            Duplicate
+          </Button>
           <Button onClick={onEdit}>⚙ Edit</Button>
           <Button variant="danger" onClick={onDelete}>
             Delete
@@ -132,7 +192,7 @@ export function DetailPane({
       <div className="mt-4 min-h-0 flex-1">
         {tab === "overview" && (
           <div className="h-full overflow-y-auto">
-            <Overview detail={detail} />
+            <Overview detail={detail} onError={onError} />
           </div>
         )}
         {tab === "logs" && <LogsView label={j.label} />}

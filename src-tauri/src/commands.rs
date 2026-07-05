@@ -115,25 +115,64 @@ pub fn list_jobs() -> Result<Vec<Job>, String> {
 #[tauri::command]
 pub fn get_job(label: String) -> Result<JobDetail, String> {
     let path = domain::plist_path(&label);
-    let value = plist_model::read_value(&path)?;
+    let path_str = path.to_string_lossy().to_string();
     let states = launchctl::loaded_states();
     let disabled = launchctl::disabled_labels();
     let mine = manifest::load();
-    let real_label = plist_model::label_of(&value).unwrap_or_else(|| label.clone());
-    let job = build_job(
-        &real_label,
-        &path.to_string_lossy(),
-        Some(&value),
-        None,
-        &states,
-        &disabled,
-        &mine,
-    );
-    Ok(JobDetail {
-        form: plist_model::value_to_form(&value),
-        raw_plist: plist_model::to_xml(&value)?,
-        job,
-    })
+
+    match plist_model::read_value(&path) {
+        Ok(value) => {
+            let real_label = plist_model::label_of(&value).unwrap_or_else(|| label.clone());
+            let job = build_job(&real_label, &path_str, Some(&value), None, &states, &disabled, &mine);
+            Ok(JobDetail {
+                form: plist_model::value_to_form(&value),
+                raw_plist: plist_model::to_xml(&value)?,
+                job,
+            })
+        }
+        Err(e) => {
+            // Unparseable plist: still open it so the raw text can be fixed.
+            let job = build_job(&label, &path_str, None, Some(e), &states, &disabled, &mine);
+            Ok(JobDetail {
+                form: JobForm::default(),
+                raw_plist: fs::read_to_string(&path).unwrap_or_default(),
+                job,
+            })
+        }
+    }
+}
+
+/// Live runtime state only (no plist reads) — for cheap polling.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveStatus {
+    loaded: bool,
+    disabled: bool,
+    pid: Option<i64>,
+    last_exit: Option<i64>,
+}
+
+#[tauri::command]
+pub fn job_statuses() -> HashMap<String, LiveStatus> {
+    let states = launchctl::loaded_states();
+    let disabled = launchctl::disabled_labels();
+    let mut labels: HashSet<&String> = states.keys().collect();
+    labels.extend(disabled.iter());
+    labels
+        .into_iter()
+        .map(|label| {
+            let live = states.get(label).cloned().unwrap_or_default();
+            (
+                label.clone(),
+                LiveStatus {
+                    loaded: states.contains_key(label),
+                    disabled: disabled.contains(label),
+                    pid: live.pid,
+                    last_exit: live.last_exit,
+                },
+            )
+        })
+        .collect()
 }
 
 /// Render a form to plist XML (for the Raw tab / preview).

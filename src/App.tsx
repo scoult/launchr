@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
-import {
-  deleteJob,
-  getJob,
-  listJobs,
-  setState,
-} from "./api";
-import type { Action, Job, JobDetail } from "./types";
+import { deleteJob, getJob, jobStatuses, listJobs, setState } from "./api";
+import type { Action, Job, JobDetail, JobForm, LiveStatus } from "./types";
 import { emptyForm } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { DetailPane } from "./components/DetailPane";
 import { JobEditor } from "./components/JobEditor";
 import { ConfirmDialog, Logo } from "./components/ui";
 
+interface EditorState {
+  mode: "new" | "edit";
+  initialForm?: JobForm;
+  initialRaw?: string;
+  initialTab?: "form" | "raw";
+}
+
 export default function App() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<JobDetail | null>(null);
-  const [editor, setEditor] = useState<{ mode: "new" | "edit" } | null>(null);
+  const [editor, setEditor] = useState<EditorState | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -34,6 +36,30 @@ export default function App() {
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Live status polling — cheap (no plist reads); merges only status fields so
+  // the open editor / CodeMirror are untouched.
+  useEffect(() => {
+    const apply = (s: LiveStatus | undefined) => ({
+      loaded: !!s?.loaded,
+      disabled: !!s?.disabled,
+      pid: s?.pid ?? null,
+      lastExit: s?.lastExit ?? null,
+    });
+    const id = setInterval(async () => {
+      let statuses: Record<string, LiveStatus>;
+      try {
+        statuses = await jobStatuses();
+      } catch {
+        return;
+      }
+      setJobs((prev) => prev.map((j) => ({ ...j, ...apply(statuses[j.label]) })));
+      setDetail((prev) =>
+        prev ? { ...prev, job: { ...prev.job, ...apply(statuses[prev.job.label]) } } : prev,
+      );
+    }, 3000);
+    return () => clearInterval(id);
   }, []);
 
   async function select(label: string) {
@@ -68,6 +94,27 @@ export default function App() {
     await refresh(null);
   }
 
+  function openEdit() {
+    if (!detail) return;
+    // A parse-error job has no usable form — open straight to the raw text.
+    if (detail.job.parseError) {
+      setEditor({ mode: "edit", initialRaw: detail.rawPlist, initialTab: "raw" });
+    } else {
+      setEditor({ mode: "edit" });
+    }
+  }
+
+  function openDuplicate() {
+    if (!detail) return;
+    setEditor({
+      mode: "new",
+      initialForm: {
+        ...detail.form,
+        label: detail.form.label ? `${detail.form.label}.copy` : "",
+      },
+    });
+  }
+
   return (
     <div className="flex h-full bg-canvas text-fg">
       <Sidebar
@@ -82,8 +129,10 @@ export default function App() {
           key={detail.job.label}
           detail={detail}
           onAction={act}
-          onEdit={() => setEditor({ mode: "edit" })}
+          onEdit={openEdit}
+          onDuplicate={openDuplicate}
           onDelete={() => setConfirmingDelete(true)}
+          onError={setActionError}
           error={actionError}
         />
       ) : (
@@ -108,13 +157,16 @@ export default function App() {
       {editor && (
         <JobEditor
           mode={editor.mode}
-          initial={editor.mode === "edit" && detail ? detail.form : emptyForm()}
+          initial={
+            editor.initialForm ??
+            (editor.mode === "edit" && detail ? detail.form : emptyForm())
+          }
+          initialRaw={editor.initialRaw}
+          initialTab={editor.initialTab}
           onClose={() => setEditor(null)}
           onSaved={async () => {
-            const label =
-              editor.mode === "edit" ? selected : undefined;
             setEditor(null);
-            await refresh(label ?? selected);
+            await refresh(selected);
           }}
         />
       )}

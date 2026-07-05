@@ -17,6 +17,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::list_jobs,
             commands::get_job,
+            commands::job_statuses,
             commands::form_to_plist,
             commands::save_job,
             commands::set_state,
