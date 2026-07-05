@@ -44,7 +44,7 @@ pub fn parse_str(raw: &str) -> Result<Value, String> {
     Value::from_reader(Cursor::new(raw.as_bytes())).map_err(|e| e.to_string())
 }
 
-fn dict<'a>(v: &'a Value) -> Option<&'a Dictionary> {
+fn dict(v: &Value) -> Option<&Dictionary> {
     v.as_dictionary()
 }
 
@@ -94,7 +94,10 @@ pub fn schedule_desc(v: &Value) -> String {
     }
     if let Some(cal) = d.get("StartCalendarInterval") {
         let entries: Vec<Dictionary> = match cal.as_array() {
-            Some(a) => a.iter().filter_map(|x| x.as_dictionary().cloned()).collect(),
+            Some(a) => a
+                .iter()
+                .filter_map(|x| x.as_dictionary().cloned())
+                .collect(),
             None => cal.as_dictionary().cloned().into_iter().collect(),
         };
         if entries.is_empty() {
@@ -104,8 +107,14 @@ pub fn schedule_desc(v: &Value) -> String {
             !sd.contains_key("Day") && !sd.contains_key("Weekday") && !sd.contains_key("Month")
         };
         let fmt = |sd: &Dictionary| {
-            let h = sd.get("Hour").and_then(|x| x.as_signed_integer()).unwrap_or(0);
-            let m = sd.get("Minute").and_then(|x| x.as_signed_integer()).unwrap_or(0);
+            let h = sd
+                .get("Hour")
+                .and_then(|x| x.as_signed_integer())
+                .unwrap_or(0);
+            let m = sd
+                .get("Minute")
+                .and_then(|x| x.as_signed_integer())
+                .unwrap_or(0);
             format!("{:02}:{:02}", h, m)
         };
         if entries.iter().all(time_only) {
@@ -127,7 +136,10 @@ pub fn schedule_desc(v: &Value) -> String {
     if d.contains_key("WatchPaths") {
         return "when files change".into();
     }
-    if d.get("RunAtLoad").and_then(|x| x.as_boolean()).unwrap_or(false) {
+    if d.get("RunAtLoad")
+        .and_then(|x| x.as_boolean())
+        .unwrap_or(false)
+    {
         return "at login".into();
     }
     "manual".into()
@@ -139,7 +151,11 @@ pub fn value_to_form(v: &Value) -> JobForm {
     let str_arr = |key: &str| -> Vec<String> {
         d.get(key)
             .and_then(|x| x.as_array())
-            .map(|a| a.iter().filter_map(|x| x.as_string().map(String::from)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_string().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default()
     };
     let cal = d
@@ -172,13 +188,23 @@ pub fn value_to_form(v: &Value) -> JobForm {
         })
         .unwrap_or_default();
     JobForm {
-        label: d.get("Label").and_then(|x| x.as_string()).unwrap_or("").to_string(),
+        label: d
+            .get("Label")
+            .and_then(|x| x.as_string())
+            .unwrap_or("")
+            .to_string(),
         program_arguments: str_arr("ProgramArguments"),
-        run_at_load: d.get("RunAtLoad").and_then(|x| x.as_boolean()).unwrap_or(false),
+        run_at_load: d
+            .get("RunAtLoad")
+            .and_then(|x| x.as_boolean())
+            .unwrap_or(false),
         start_interval: d.get("StartInterval").and_then(|x| x.as_signed_integer()),
         calendar: cal,
         watch_paths: str_arr("WatchPaths"),
-        keep_alive: d.get("KeepAlive").and_then(|x| x.as_boolean()).unwrap_or(false),
+        keep_alive: d
+            .get("KeepAlive")
+            .and_then(|x| x.as_boolean())
+            .unwrap_or(false),
         standard_out_path: string_key(v, "StandardOutPath"),
         standard_error_path: string_key(v, "StandardErrorPath"),
         environment_variables: env,
@@ -208,7 +234,13 @@ pub fn form_to_value(f: &JobForm) -> Value {
     d.insert("Label".into(), Value::String(f.label.clone()));
     d.insert(
         "ProgramArguments".into(),
-        Value::Array(f.program_arguments.iter().cloned().map(Value::String).collect()),
+        Value::Array(
+            f.program_arguments
+                .iter()
+                .cloned()
+                .map(Value::String)
+                .collect(),
+        ),
     );
     if f.run_at_load {
         d.insert("RunAtLoad".into(), Value::Boolean(true));
@@ -264,7 +296,11 @@ mod tests {
             program_arguments: vec!["/usr/bin/backup.sh".into(), "--flag".into()],
             run_at_load: true,
             start_interval: Some(1800),
-            calendar: vec![CalendarEntry { minute: Some(0), hour: Some(9), ..Default::default() }],
+            calendar: vec![CalendarEntry {
+                minute: Some(0),
+                hour: Some(9),
+                ..Default::default()
+            }],
             watch_paths: vec!["/tmp/watch".into()],
             keep_alive: true,
             standard_out_path: Some("/tmp/out.log".into()),
@@ -311,9 +347,18 @@ mod tests {
         assert_eq!(form.calendar.len(), 2);
         let back = value_to_form(&parse_str(&to_xml(&form_to_value(&form)).unwrap()).unwrap());
         assert_eq!(back.calendar.len(), 2, "both scheduled times must survive");
-        assert_eq!((back.calendar[0].hour, back.calendar[0].minute), (Some(9), Some(30)));
-        assert_eq!((back.calendar[1].hour, back.calendar[1].minute), (Some(11), Some(30)));
-        assert_eq!(schedule_desc(&parse_str(xml).unwrap()), "daily at 09:30, 11:30");
+        assert_eq!(
+            (back.calendar[0].hour, back.calendar[0].minute),
+            (Some(9), Some(30))
+        );
+        assert_eq!(
+            (back.calendar[1].hour, back.calendar[1].minute),
+            (Some(11), Some(30))
+        );
+        assert_eq!(
+            schedule_desc(&parse_str(xml).unwrap()),
+            "daily at 09:30, 11:30"
+        );
     }
 
     #[test]
@@ -329,18 +374,33 @@ mod tests {
 
     #[test]
     fn schedule_desc_reads_interval_and_daily() {
-        let interval = form_to_value(&JobForm { start_interval: Some(1800), ..Default::default() });
+        let interval = form_to_value(&JobForm {
+            start_interval: Some(1800),
+            ..Default::default()
+        });
         assert_eq!(schedule_desc(&interval), "every 30 min");
         let daily = form_to_value(&JobForm {
-            calendar: vec![CalendarEntry { minute: Some(5), hour: Some(9), ..Default::default() }],
+            calendar: vec![CalendarEntry {
+                minute: Some(5),
+                hour: Some(9),
+                ..Default::default()
+            }],
             ..Default::default()
         });
         assert_eq!(schedule_desc(&daily), "daily at 09:05");
         // pvemonitor case: two time-only entries -> both listed.
         let twice = form_to_value(&JobForm {
             calendar: vec![
-                CalendarEntry { minute: Some(30), hour: Some(9), ..Default::default() },
-                CalendarEntry { minute: Some(30), hour: Some(11), ..Default::default() },
+                CalendarEntry {
+                    minute: Some(30),
+                    hour: Some(9),
+                    ..Default::default()
+                },
+                CalendarEntry {
+                    minute: Some(30),
+                    hour: Some(11),
+                    ..Default::default()
+                },
             ],
             ..Default::default()
         });
@@ -348,7 +408,11 @@ mod tests {
         // more than two -> count summary.
         let many = form_to_value(&JobForm {
             calendar: (0..4)
-                .map(|h| CalendarEntry { minute: Some(0), hour: Some(h), ..Default::default() })
+                .map(|h| CalendarEntry {
+                    minute: Some(0),
+                    hour: Some(h),
+                    ..Default::default()
+                })
                 .collect(),
             ..Default::default()
         });

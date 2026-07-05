@@ -11,7 +11,9 @@ fn manifest_path() -> std::path::PathBuf {
 
 pub fn load() -> HashSet<String> {
     let path = manifest_path();
-    let Ok(text) = fs::read_to_string(&path) else { return HashSet::new() };
+    let Ok(text) = fs::read_to_string(&path) else {
+        return HashSet::new();
+    };
     serde_json::from_str::<Vec<String>>(&text)
         .map(|v| v.into_iter().collect())
         .unwrap_or_default()

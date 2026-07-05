@@ -89,9 +89,20 @@ The app bundle lands at
 ## Test
 
 ```sh
-cargo test --manifest-path src-tauri/Cargo.toml   # Rust: plist round-trip, schedule parsing
-node src/lib/ansi.test.ts                          # frontend: ANSI SGR parser
+pnpm typecheck   # tsc --noEmit
+pnpm test        # node unit tests (ansi, shellwords) + cargo test
+pnpm lint        # cargo fmt --check + clippy -D warnings
 ```
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and push to `main`: it
+typechecks, runs the unit tests, checks Rust formatting + clippy, runs `cargo
+test`, and validates the OpenSpec specs. It's a single macOS job (the Tauri crate
+is macOS-only and `cargo` needs the built `dist/`).
+
+To make it block merges, mark the **CI** check as required in
+**Settings → Branches → Branch protection** for `main`.
 
 ## Project layout
 
