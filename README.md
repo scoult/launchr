@@ -45,6 +45,17 @@ with a user agent: read the job, edit the job, and control the job.
 > System daemons (`/Library/LaunchDaemons`), root, and other domains are
 > intentionally out of scope.
 
+## Download / Install
+
+Grab the latest `.dmg` from the [Releases](../../releases) page (Apple Silicon /
+arm64), open it, and drag **launchr** to Applications.
+
+The build is **not code-signed**, so macOS Gatekeeper blocks it on first launch.
+To open it the first time, either:
+
+- **Right-click** launchr in Applications → **Open** → **Open**, or
+- run: `xattr -dr com.apple.quarantine /Applications/launchr.app`
+
 ## Tech stack
 
 | Layer | Choice |
@@ -103,6 +114,19 @@ is macOS-only and `cargo` needs the built `dist/`).
 
 To make it block merges, mark the **CI** check as required in
 **Settings → Branches → Branch protection** for `main`.
+
+## Releasing
+
+`.github/workflows/release.yml` builds and publishes on a version tag. To cut a
+release:
+
+1. Bump `version` in `package.json` and `src-tauri/tauri.conf.json` to match.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+3. The workflow builds the `.dmg` and creates a **draft** GitHub Release; review
+   it and publish.
+
+The build is unsigned (see Download / Install). Signing + notarization can be
+added later via Developer ID secrets on the `tauri-action` step.
 
 ## Project layout
 

@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Builds the app (runs beforeBuildCommand: pnpm build), bundles the .dmg,
+      # and creates a draft GitHub Release with the assets attached.
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "launchr ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+          releaseBody: |
+            ## Install (unsigned build)
+
+            Download the `.dmg` below and drag launchr to Applications.
+
+            This build is **not code-signed**, so macOS Gatekeeper will block it
+            on first launch. To open it:
+
+            - **Right-click** launchr in Applications → **Open** → **Open**, or
+            - run: `xattr -dr com.apple.quarantine /Applications/launchr.app`
+
+            Apple Silicon (arm64) only.
