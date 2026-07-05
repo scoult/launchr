@@ -29,6 +29,7 @@ pub struct JobForm {
     pub keep_alive: bool,
     pub standard_out_path: Option<String>,
     pub standard_error_path: Option<String>,
+    pub working_directory: Option<String>,
     /// [key, value] pairs — a Vec is the simplest shape to round-trip with JS.
     pub environment_variables: Vec<[String; 2]>,
 }
@@ -207,6 +208,7 @@ pub fn value_to_form(v: &Value) -> JobForm {
             .unwrap_or(false),
         standard_out_path: string_key(v, "StandardOutPath"),
         standard_error_path: string_key(v, "StandardErrorPath"),
+        working_directory: string_key(v, "WorkingDirectory"),
         environment_variables: env,
     }
 }
@@ -228,54 +230,76 @@ fn cal_to_value(c: &CalendarEntry) -> Value {
     Value::Dictionary(d)
 }
 
-/// Build a plist Value from the form, including only keys that are set.
-pub fn form_to_value(f: &JobForm) -> Value {
-    let mut d = Dictionary::new();
-    d.insert("Label".into(), Value::String(f.label.clone()));
-    d.insert(
-        "ProgramArguments".into(),
-        Value::Array(
+/// Build a plist Value from the form, merging the modeled keys onto `base` when
+/// provided so keys the form does not model (e.g. WorkingDirectory when unshown,
+/// ProcessType, Nice) survive an edit/duplicate. A set field is written; an unset
+/// modeled field is removed, so clearing a field in the form still clears the key.
+/// `base` is `None` for brand-new jobs, giving the same output as building fresh.
+pub fn form_to_value(f: &JobForm, base: Option<Value>) -> Value {
+    let mut d = base
+        .and_then(|v| v.as_dictionary().cloned())
+        .unwrap_or_default();
+
+    // set_or_remove: authoritative over every key the form models.
+    let mut put = |key: &str, val: Option<Value>| match val {
+        Some(v) => {
+            d.insert(key.into(), v);
+        }
+        None => {
+            d.remove(key);
+        }
+    };
+
+    put("Label", Some(Value::String(f.label.clone())));
+    put(
+        "ProgramArguments",
+        Some(Value::Array(
             f.program_arguments
                 .iter()
                 .cloned()
                 .map(Value::String)
                 .collect(),
-        ),
+        )),
     );
-    if f.run_at_load {
-        d.insert("RunAtLoad".into(), Value::Boolean(true));
-    }
-    if let Some(n) = f.start_interval {
-        d.insert("StartInterval".into(), Value::Integer(n.into()));
-    }
-    if !f.calendar.is_empty() {
-        d.insert(
-            "StartCalendarInterval".into(),
-            Value::Array(f.calendar.iter().map(cal_to_value).collect()),
-        );
-    }
-    if !f.watch_paths.is_empty() {
-        d.insert(
-            "WatchPaths".into(),
-            Value::Array(f.watch_paths.iter().cloned().map(Value::String).collect()),
-        );
-    }
-    if f.keep_alive {
-        d.insert("KeepAlive".into(), Value::Boolean(true));
-    }
-    if let Some(p) = &f.standard_out_path {
-        d.insert("StandardOutPath".into(), Value::String(p.clone()));
-    }
-    if let Some(p) = &f.standard_error_path {
-        d.insert("StandardErrorPath".into(), Value::String(p.clone()));
-    }
-    if !f.environment_variables.is_empty() {
-        let mut env = Dictionary::new();
-        for [k, v] in &f.environment_variables {
-            env.insert(k.clone(), Value::String(v.clone()));
-        }
-        d.insert("EnvironmentVariables".into(), Value::Dictionary(env));
-    }
+    put("RunAtLoad", f.run_at_load.then_some(Value::Boolean(true)));
+    put(
+        "StartInterval",
+        f.start_interval.map(|n| Value::Integer(n.into())),
+    );
+    put(
+        "StartCalendarInterval",
+        (!f.calendar.is_empty())
+            .then(|| Value::Array(f.calendar.iter().map(cal_to_value).collect())),
+    );
+    put(
+        "WatchPaths",
+        (!f.watch_paths.is_empty())
+            .then(|| Value::Array(f.watch_paths.iter().cloned().map(Value::String).collect())),
+    );
+    put("KeepAlive", f.keep_alive.then_some(Value::Boolean(true)));
+    put(
+        "StandardOutPath",
+        f.standard_out_path.clone().map(Value::String),
+    );
+    put(
+        "StandardErrorPath",
+        f.standard_error_path.clone().map(Value::String),
+    );
+    put(
+        "WorkingDirectory",
+        f.working_directory.clone().map(Value::String),
+    );
+    put(
+        "EnvironmentVariables",
+        (!f.environment_variables.is_empty()).then(|| {
+            let mut env = Dictionary::new();
+            for [k, v] in &f.environment_variables {
+                env.insert(k.clone(), Value::String(v.clone()));
+            }
+            Value::Dictionary(env)
+        }),
+    );
+
     Value::Dictionary(d)
 }
 
@@ -305,6 +329,7 @@ mod tests {
             keep_alive: true,
             standard_out_path: Some("/tmp/out.log".into()),
             standard_error_path: None,
+            working_directory: Some("/tmp/wd".into()),
             environment_variables: vec![["FOO".into(), "bar".into()]],
         }
     }
@@ -312,7 +337,7 @@ mod tests {
     #[test]
     fn form_round_trips_through_xml() {
         let f = sample();
-        let xml = to_xml(&form_to_value(&f)).unwrap();
+        let xml = to_xml(&form_to_value(&f, None)).unwrap();
         let back = value_to_form(&parse_str(&xml).unwrap());
         assert_eq!(back.label, f.label);
         assert_eq!(back.program_arguments, f.program_arguments);
@@ -321,6 +346,7 @@ mod tests {
         assert!(back.run_at_load && back.keep_alive);
         assert_eq!(back.calendar.len(), 1);
         assert_eq!(back.calendar[0].hour, Some(9));
+        assert_eq!(back.working_directory, f.working_directory);
         assert_eq!(back.environment_variables, f.environment_variables);
     }
 
@@ -345,7 +371,8 @@ mod tests {
         // Open -> edit-shaped form -> regenerate -> reparse (mirrors save flow).
         let form = value_to_form(&parse_str(xml).unwrap());
         assert_eq!(form.calendar.len(), 2);
-        let back = value_to_form(&parse_str(&to_xml(&form_to_value(&form)).unwrap()).unwrap());
+        let back =
+            value_to_form(&parse_str(&to_xml(&form_to_value(&form, None)).unwrap()).unwrap());
         assert_eq!(back.calendar.len(), 2, "both scheduled times must survive");
         assert_eq!(
             (back.calendar[0].hour, back.calendar[0].minute),
@@ -362,9 +389,61 @@ mod tests {
     }
 
     #[test]
+    fn form_save_preserves_unmodeled_keys() {
+        // A plist with keys the form doesn't model (WorkingDirectory, ProcessType).
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.me.job</string>
+    <key>ProgramArguments</key><array><string>/bin/echo</string></array>
+    <key>WorkingDirectory</key><string>/opt/project</string>
+    <key>ProcessType</key><string>Background</string>
+</dict>
+</plist>"#;
+        let original = parse_str(xml).unwrap();
+        // WorkingDirectory IS modeled now, but ProcessType is not — it must survive
+        // a form save via the merge base.
+        let form = value_to_form(&original);
+        assert_eq!(form.working_directory.as_deref(), Some("/opt/project"));
+        let saved = form_to_value(&form, Some(original));
+        let d = saved.as_dictionary().unwrap();
+        assert_eq!(
+            d.get("ProcessType").and_then(|x| x.as_string()),
+            Some("Background"),
+            "unmodeled key must be preserved"
+        );
+        assert_eq!(
+            d.get("WorkingDirectory").and_then(|x| x.as_string()),
+            Some("/opt/project")
+        );
+    }
+
+    #[test]
+    fn clearing_a_modeled_field_removes_its_key() {
+        let base = form_to_value(&sample(), None); // has StandardOutPath = /tmp/out.log
+        assert!(base
+            .as_dictionary()
+            .unwrap()
+            .contains_key("StandardOutPath"));
+        let cleared = JobForm {
+            standard_out_path: None,
+            ..sample()
+        };
+        let saved = form_to_value(&cleared, Some(base));
+        assert!(
+            !saved
+                .as_dictionary()
+                .unwrap()
+                .contains_key("StandardOutPath"),
+            "clearing a modeled field must remove the key from the base"
+        );
+    }
+
+    #[test]
     fn reads_binary_plist_without_corruption() {
         // Serialize to binary, read back, values intact (task 7.2).
-        let v = form_to_value(&sample());
+        let v = form_to_value(&sample(), None);
         let mut bin: Vec<u8> = Vec::new();
         plist::to_writer_binary(&mut bin, &v).unwrap();
         let read = Value::from_reader(Cursor::new(&bin)).unwrap();
@@ -374,48 +453,60 @@ mod tests {
 
     #[test]
     fn schedule_desc_reads_interval_and_daily() {
-        let interval = form_to_value(&JobForm {
-            start_interval: Some(1800),
-            ..Default::default()
-        });
-        assert_eq!(schedule_desc(&interval), "every 30 min");
-        let daily = form_to_value(&JobForm {
-            calendar: vec![CalendarEntry {
-                minute: Some(5),
-                hour: Some(9),
+        let interval = form_to_value(
+            &JobForm {
+                start_interval: Some(1800),
                 ..Default::default()
-            }],
-            ..Default::default()
-        });
-        assert_eq!(schedule_desc(&daily), "daily at 09:05");
-        // pvemonitor case: two time-only entries -> both listed.
-        let twice = form_to_value(&JobForm {
-            calendar: vec![
-                CalendarEntry {
-                    minute: Some(30),
+            },
+            None,
+        );
+        assert_eq!(schedule_desc(&interval), "every 30 min");
+        let daily = form_to_value(
+            &JobForm {
+                calendar: vec![CalendarEntry {
+                    minute: Some(5),
                     hour: Some(9),
                     ..Default::default()
-                },
-                CalendarEntry {
-                    minute: Some(30),
-                    hour: Some(11),
-                    ..Default::default()
-                },
-            ],
-            ..Default::default()
-        });
+                }],
+                ..Default::default()
+            },
+            None,
+        );
+        assert_eq!(schedule_desc(&daily), "daily at 09:05");
+        // pvemonitor case: two time-only entries -> both listed.
+        let twice = form_to_value(
+            &JobForm {
+                calendar: vec![
+                    CalendarEntry {
+                        minute: Some(30),
+                        hour: Some(9),
+                        ..Default::default()
+                    },
+                    CalendarEntry {
+                        minute: Some(30),
+                        hour: Some(11),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            },
+            None,
+        );
         assert_eq!(schedule_desc(&twice), "daily at 09:30, 11:30");
         // more than two -> count summary.
-        let many = form_to_value(&JobForm {
-            calendar: (0..4)
-                .map(|h| CalendarEntry {
-                    minute: Some(0),
-                    hour: Some(h),
-                    ..Default::default()
-                })
-                .collect(),
-            ..Default::default()
-        });
+        let many = form_to_value(
+            &JobForm {
+                calendar: (0..4)
+                    .map(|h| CalendarEntry {
+                        minute: Some(0),
+                        hour: Some(h),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            },
+            None,
+        );
         assert_eq!(schedule_desc(&many), "4 times daily");
     }
 }

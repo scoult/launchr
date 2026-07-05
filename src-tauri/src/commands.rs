@@ -210,10 +210,16 @@ pub fn job_statuses() -> HashMap<String, LiveStatus> {
         .collect()
 }
 
-/// Render a form to plist XML (for the Raw tab / preview).
+/// Render a form to plist XML (for the Raw tab / preview). `base_raw` is the
+/// original plist when editing/duplicating, so keys the form does not model are
+/// preserved rather than dropped; `None` for a brand-new job.
 #[tauri::command]
-pub fn form_to_plist(form: JobForm) -> Result<String, String> {
-    plist_model::to_xml(&plist_model::form_to_value(&form))
+pub fn form_to_plist(form: JobForm, base_raw: Option<String>) -> Result<String, String> {
+    let base = base_raw
+        .as_deref()
+        .map(plist_model::parse_str)
+        .transpose()?;
+    plist_model::to_xml(&plist_model::form_to_value(&form, base))
 }
 
 /// Validate + write a plist. Same path for form-save and raw-save: the frontend

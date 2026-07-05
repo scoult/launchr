@@ -66,7 +66,7 @@ export function JobEditor({
   async function switchTab(next: "form" | "raw") {
     if (next === "raw") {
       try {
-        setRaw(await formToPlist(form));
+        setRaw(await formToPlist(form, initialRaw));
         setError(null);
       } catch (e) {
         setError(String(e));
@@ -79,7 +79,7 @@ export function JobEditor({
     setBusy(true);
     setError(null);
     try {
-      const xml = tab === "raw" ? raw : await formToPlist(form);
+      const xml = tab === "raw" ? raw : await formToPlist(form, initialRaw);
       await saveJob(xml, mode === "new");
       onSaved();
     } catch (e) {
@@ -301,6 +301,16 @@ function Advanced({
             placeholder="~/Library/Logs/job.err"
             onChange={(e) =>
               patch({ standardErrorPath: e.currentTarget.value || null })
+            }
+          />
+        </Field>
+
+        <Field label="Working directory" hint="WorkingDirectory">
+          <Input
+            value={form.workingDirectory ?? ""}
+            placeholder="/path/to/project"
+            onChange={(e) =>
+              patch({ workingDirectory: e.currentTarget.value || null })
             }
           />
         </Field>
