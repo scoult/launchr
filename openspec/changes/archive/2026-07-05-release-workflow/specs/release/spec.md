@@ -30,13 +30,20 @@ The release SHALL attach an installable macOS artifact (a `.dmg`), not a bare
 ### Requirement: Unsigned build is documented
 
 Because the build is unsigned, the project SHALL document the macOS first-launch
-workaround (right-click → Open, or clearing the quarantine attribute) where users
-obtain the download.
+workaround where users obtain the download (README and release notes). The
+documented method MUST be one that actually clears the download quarantine —
+`xattr -dr com.apple.quarantine /Applications/launchr.app` — because on Apple
+Silicon an unsigned download shows "is damaged … Move to Bin" with no Open
+option, so a right-click → Open instruction does not work and MUST NOT be
+presented as the fix.
 
-#### Scenario: Install instructions are available
+#### Scenario: Install instructions are available and effective
 
-- **WHEN** a user downloads an unsigned release build
-- **THEN** the release notes and/or README explain how to open it past Gatekeeper
+- **WHEN** a user downloads an unsigned release build and hits the "damaged"
+  Gatekeeper message
+- **THEN** the release notes and README lead with the quarantine-clearing command
+  that opens the app, and set the expectation that "damaged" is normal for an
+  unsigned download
 
 ### Requirement: Reviewable release
 
