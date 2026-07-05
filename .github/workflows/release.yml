@@ -43,12 +43,17 @@ jobs:
           releaseBody: |
             ## Install (unsigned build)
 
-            Download the `.dmg` below and drag launchr to Applications.
+            Download the `.dmg` below, open it, and drag launchr to Applications.
 
-            This build is **not code-signed**, so macOS Gatekeeper will block it
-            on first launch. To open it:
+            This build is **not code-signed**, so on first launch macOS shows
+            _"launchr.app is damaged and can't be opened"_ — this is expected for
+            an unsigned download, the app is fine. Clear the quarantine to open it:
 
-            - **Right-click** launchr in Applications → **Open** → **Open**, or
-            - run: `xattr -dr com.apple.quarantine /Applications/launchr.app`
+            ```
+            xattr -dr com.apple.quarantine /Applications/launchr.app
+            ```
+
+            (Right-click → Open does **not** clear the "damaged" state on Apple
+            Silicon.)
 
             Apple Silicon (arm64) only.

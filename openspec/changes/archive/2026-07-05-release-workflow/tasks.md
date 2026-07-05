@@ -12,4 +12,9 @@
 ## 3. Verify
 
 - [x] 3.1 Validate `release.yml` (YAML parses); confirm `pnpm tauri build --bundles dmg` produces `src-tauri/target/release/bundle/dmg/*.dmg`
-- [ ] 3.2 End-to-end (requires remote): push `v0.1.0` → workflow runs → a draft Release appears with the `.dmg` → download, right-click-Open, confirm it launches
+- [ ] 3.2 End-to-end (requires remote): push `v0.1.0` → workflow runs → a draft Release appears with the `.dmg` → download, clear quarantine, confirm it launches
+
+## 4. Fix install docs (Gatekeeper "damaged")
+
+- [x] 4.1 README **Download / Install**: lead with `xattr -dr com.apple.quarantine /Applications/launchr.app`; state the "is damaged … Move to Bin" message is expected for an unsigned download; remove the non-working right-click → Open step
+- [x] 4.2 `.github/workflows/release.yml` `releaseBody`: same correction (xattr as the method; drop right-click → Open)

@@ -50,11 +50,17 @@ with a user agent: read the job, edit the job, and control the job.
 Grab the latest `.dmg` from the [Releases](../../releases) page (Apple Silicon /
 arm64), open it, and drag **launchr** to Applications.
 
-The build is **not code-signed**, so macOS Gatekeeper blocks it on first launch.
-To open it the first time, either:
+The build is **not code-signed**, so on first launch macOS shows
+_"launchr.app is damaged and can't be opened"_ (with only **Move to Bin**). This
+is expected for an unsigned download — the app is fine. Clear the download
+quarantine to open it:
 
-- **Right-click** launchr in Applications → **Open** → **Open**, or
-- run: `xattr -dr com.apple.quarantine /Applications/launchr.app`
+```sh
+xattr -dr com.apple.quarantine /Applications/launchr.app
+```
+
+> Right-click → Open does **not** clear the "damaged" state on Apple Silicon —
+> the `xattr` command above is the fix.
 
 ## Tech stack
 
@@ -154,6 +160,11 @@ behavior lives in `openspec/specs/` (capabilities: `agent-inventory`,
 `agent-lifecycle`, `agent-editor`, `agent-logs`, `app-branding`,
 `ui-design-system`), and every change's proposal/design/tasks are archived under
 `openspec/changes/archive/`.
+
+## Support
+
+If launchr is saving you time and you're getting value out of it, why not
+[buy me a coffee](https://buymeacoffee.com/samcoult)? ☕
 
 ## License
 
